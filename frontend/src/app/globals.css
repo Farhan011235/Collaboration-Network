@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Research & Project Collaboration Network - theme
+  Deep teal palette. Every colour is defined once here as an HSL
+  triple so shadcn/ui components inherit it automatically.
+
+  Ink      #0B2B29   Primary  #0E7C6B
+  Canvas   #F6F9F8   Muted    #5B7A75   Ring #7FD1C1
+*/
+
+@layer base {
+  :root {
+    --background: 168 24% 97%;
+    --foreground: 176 55% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 176 55% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 176 55% 11%;
+
+    --primary: 171 80% 27%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 168 30% 93%;
+    --secondary-foreground: 176 45% 18%;
+
+    --muted: 168 25% 94%;
+    --muted-foreground: 172 14% 42%;
+
+    --accent: 168 45% 90%;
+    --accent-foreground: 174 60% 18%;
+
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 170 18% 88%;
+    --input: 170 18% 86%;
+    --ring: 171 55% 45%;
+
+    --radius: 0.6rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Keyboard focus stays visible everywhere. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-newsreader), Georgia, serif;
+  }
+
+  /* Faint grid used behind the auth panel. */
+  .bg-grid {
+    background-image: linear-gradient(
+        to right,
+        hsl(var(--primary) / 0.06) 1px,
+        transparent 1px
+      ),
+      linear-gradient(to bottom, hsl(var(--primary) / 0.06) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

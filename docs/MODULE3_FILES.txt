@@ -1,0 +1,497 @@
+================================================================================
+RESEARCH & PROJECT COLLABORATION NETWORK (RPCN)
+MODULE 3 - FILE MANIFEST & GITHUB PUSH LISTS
+Group 10, CSE471 Lab Section 14
+Last updated: 2026-08-19
+================================================================================
+
+SCOPE OF THIS DOCUMENT
+----------------------
+Covers Module 3 features 1-6 only.
+  F1 Research Meeting Scheduler ............ Farhan Haque Shakib
+  F2 Project Recommendation System ......... Farhan Haque Shakib
+  F3 Proposal Quality Assistant ............ Mohammad Zunaid
+  F4 Project Analytics Dashboard ........... Mohammad Zunaid
+  F5 Academic Publication Search ........... Tapu Mohammad Fahad
+  F6 Project Report Generation ............. Tapu Mohammad Fahad
+
+Module 3 F7 (Researcher Discovery) and F8 (Collaborator Recommendation),
+both assigned to Nuzhat Tahsin, are NOT implemented.
+
+Project layout: MVC with separate folders.
+  backend/   Node.js + Express + TypeScript + Prisma + PostgreSQL
+  frontend/  Next.js + React + TypeScript + Tailwind
+
+
+================================================================================
+QUICK "WHO CAN DO WHAT" SUMMARY
+================================================================================
+
+F1  RESEARCH MEETING SCHEDULER                          (Shakib)
+    Any project MEMBER      - view the project's meetings
+                            - schedule a meeting (invites the whole team)
+                            - connect / disconnect their own Google Calendar
+                            - add an existing meeting to their own calendar
+    ORGANIZER or OWNER only - edit a meeting
+                            - cancel a meeting (removes it from every
+                              connected attendee's Google Calendar)
+    Everyone invited        - receives MEETING_SCHEDULED / UPDATED / CANCELLED
+                              notifications
+    Non-member              - blocked (403)
+
+F2  PROJECT RECOMMENDATION SYSTEM                       (Shakib)
+    Any signed-in user      - see "For you": published projects ranked by how
+                              well they match the user's portfolio
+    Never recommended       - projects the user owns, is a member of, or has
+                              already applied to
+    No special roles. Each user only ever sees their own recommendations.
+
+F3  PROPOSAL QUALITY ASSISTANT                          (Zunaid)
+    PROJECT OWNER only      - run the AI analysis on their own proposal
+                            - re-analyze at any time
+    Everyone else           - the panel is not shown; the API returns 403
+    Note: analysis is ADVISORY. It never blocks publishing.
+
+F4  PROJECT ANALYTICS DASHBOARD                         (Zunaid)
+    Any project MEMBER      - view progress, task/milestone breakdown,
+                              30-day completion trend, collaboration totals
+                              and per-member contribution scores
+    Non-member              - blocked (403)
+
+F5  ACADEMIC PUBLICATION SEARCH                         (Fahad)
+    Any signed-in user      - search OpenAlex; read title, authors, venue,
+                              year, DOI, citation count, abstract
+                            - filter by year range / open access, sort by
+                              relevance, citations or date
+                            - copy a DOI, open free full text
+                            - add a paper to their own research portfolio
+    Signed-out              - blocked (401)
+
+F6  PROJECT REPORT GENERATION                           (Fahad)
+    PROJECT OWNER only      - download the PDF progress report
+                            - fetch the JSON preview of the same data
+    Everyone else           - the button is hidden; the API returns 403
+
+
+================================================================================
+CROSS-CUTTING NOTES
+================================================================================
+
+DATABASE
+  Only F1 changed the database schema.
+    - Added enum  MeetingStatus
+    - Added enums to NotificationType: MEETING_SCHEDULED, MEETING_UPDATED,
+      MEETING_CANCELLED
+    - Added models Meeting, MeetingAttendee, GoogleAccount
+    - Migration: backend/prisma/migrations/20260817185238_add_meeting_scheduler/
+  F2, F3, F4, F5 and F6 need NO migration. They read existing tables or call
+  external APIs.
+
+NEW NPM DEPENDENCIES
+    F1  googleapis      (backend)
+    F6  pdfkit          (backend) + @types/pdfkit (dev)
+    F2, F3, F4, F5 add NO dependencies.
+    F3 and F5 call their APIs with Node's built-in fetch.
+    F4 charts are hand-written SVG/CSS - no chart library.
+
+ENVIRONMENT VARIABLES (backend/.env)
+    F1  GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
+    F3  GEMINI_API_KEY, GEMINI_MODEL         (default gemini-3.6-flash)
+    F5  OPENALEX_MAILTO                      (optional; OpenAlex needs no key)
+    The app still runs when these are blank - the affected feature reports
+    "not configured" instead of crashing.
+    IMPORTANT: nodemon does NOT watch .env. Fully restart `npm run dev` after
+    editing it, or the server keeps the old values.
+
+SHARED FILE TOUCHED BY EVERY FEATURE
+    backend/src/routes/index.ts   - each feature mounts its own router here.
+    Expect merge conflicts in this one file. Resolve by keeping ALL of the
+    import lines and ALL of the router.use lines.
+
+
+================================================================================
+F1 - RESEARCH MEETING SCHEDULER                              (Shakib)
+================================================================================
+
+NEW - BACKEND
+  backend/src/config/google.ts
+  backend/src/models/google.model.ts
+  backend/src/models/meeting.model.ts
+  backend/src/services/googleCalendar.service.ts
+  backend/src/controllers/google.controller.ts
+  backend/src/controllers/meeting.controller.ts
+  backend/src/routes/google.routes.ts
+  backend/src/routes/meeting.routes.ts
+  backend/src/validators/meeting.validator.ts
+  backend/prisma/migrations/20260817185238_add_meeting_scheduler/migration.sql
+
+NEW - FRONTEND
+  frontend/src/services/google.service.ts
+  frontend/src/services/meeting.service.ts
+  frontend/src/components/workspace/MeetingForm.tsx
+  frontend/src/app/projects/[id]/meetings/page.tsx
+
+MODIFIED
+  backend/prisma/schema.prisma          MeetingStatus enum; 3 NotificationType
+                                        values; Meeting, MeetingAttendee and
+                                        GoogleAccount models; relations on
+                                        User and Project
+  backend/src/config/env.ts             googleClientId / Secret / RedirectUri
+  backend/src/routes/index.ts           mount /google and /meetings
+  backend/.env, backend/.env.example    Google OAuth variables
+  backend/package.json                  + googleapis
+  frontend/src/types/index.ts           GoogleStatus, Meeting, MeetingAttendee,
+                                        MeetingFormValues; 3 notification types
+  frontend/src/app/projects/[id]/page.tsx        "Meetings" button (owner)
+  frontend/src/app/projects/[id]/workspace/page.tsx  "Meetings" header link
+
+API ENDPOINTS
+  GET    /api/google/status
+  GET    /api/google/auth-url
+  GET    /api/google/callback          (no JWT - signed OAuth state instead)
+  DELETE /api/google/disconnect
+  GET    /api/meetings/project/:projectId
+  POST   /api/meetings/project/:projectId
+  POST   /api/meetings/:id/sync
+  PATCH  /api/meetings/:id
+  DELETE /api/meetings/:id
+
+GITHUB PUSH LIST
+  git add backend/prisma/schema.prisma
+  git add backend/prisma/migrations/20260817185238_add_meeting_scheduler
+  git add backend/src/config/google.ts
+  git add backend/src/config/env.ts
+  git add backend/src/models/google.model.ts
+  git add backend/src/models/meeting.model.ts
+  git add backend/src/services/googleCalendar.service.ts
+  git add backend/src/controllers/google.controller.ts
+  git add backend/src/controllers/meeting.controller.ts
+  git add backend/src/routes/google.routes.ts
+  git add backend/src/routes/meeting.routes.ts
+  git add backend/src/routes/index.ts
+  git add backend/src/validators/meeting.validator.ts
+  git add backend/.env.example
+  git add backend/package.json backend/package-lock.json
+  git add frontend/src/services/google.service.ts
+  git add frontend/src/services/meeting.service.ts
+  git add frontend/src/components/workspace/MeetingForm.tsx
+  git add "frontend/src/app/projects/[id]/meetings/page.tsx"
+  git add "frontend/src/app/projects/[id]/page.tsx"
+  git add "frontend/src/app/projects/[id]/workspace/page.tsx"
+  git add frontend/src/types/index.ts
+  git commit -m "feat(module3-f1): research meeting scheduler with Google Calendar sync"
+
+  DO NOT COMMIT backend/.env - it holds the real Google client secret.
+
+
+================================================================================
+F2 - PROJECT RECOMMENDATION SYSTEM                           (Shakib)
+================================================================================
+
+NEW - BACKEND
+  backend/src/models/recommendation.model.ts
+  backend/src/services/recommendation.service.ts      <- the matching algorithm
+  backend/src/controllers/recommendation.controller.ts
+  backend/src/routes/recommendation.routes.ts
+
+NEW - FRONTEND
+  frontend/src/services/recommendation.service.ts
+  frontend/src/components/projects/RecommendationCard.tsx
+  frontend/src/app/recommendations/page.tsx
+
+MODIFIED
+  backend/src/routes/index.ts           mount /recommendations
+  frontend/src/types/index.ts           ProjectRecommendationMeta,
+                                        RecommendedProject
+  frontend/src/components/layout/Navbar.tsx      "For you" link
+
+API ENDPOINTS
+  GET    /api/recommendations
+
+HOW THE MATCH % IS CALCULATED (no AI)
+  skillFit    = sum(importanceWeight x proficiencyStrength) / sum(importanceWeight)
+                importance: REQUIRED 3, PREFERRED 2, OPTIONAL 1
+                proficiency: EXPERT 1.0, ADVANCED 0.85,
+                             INTERMEDIATE 0.7, BEGINNER 0.5
+                a skill only inferred from past projects counts 0.6
+  interestFit = min(1, evidence / 3)
+                evidence weights: declared interest 1.0, education field 0.8,
+                engaged project domain 0.7, publication venue/title 0.5
+                a hit on the research domain itself counts double
+  match %     = round(100 x (0.65 x skillFit + 0.35 x interestFit))
+                if a side has no data it is dropped and the other is used alone
+  Excluded from candidates: projects you own, are a member of, or applied to.
+
+  NOTE: this feature reads the Module 1 Feature 4 portfolio. With an empty
+  portfolio it falls back to signals inferred from projects the user engages
+  with, and returns an empty list if there is nothing at all to match on.
+
+GITHUB PUSH LIST
+  git add backend/src/models/recommendation.model.ts
+  git add backend/src/services/recommendation.service.ts
+  git add backend/src/controllers/recommendation.controller.ts
+  git add backend/src/routes/recommendation.routes.ts
+  git add backend/src/routes/index.ts
+  git add frontend/src/services/recommendation.service.ts
+  git add frontend/src/components/projects/RecommendationCard.tsx
+  git add frontend/src/app/recommendations/page.tsx
+  git add frontend/src/components/layout/Navbar.tsx
+  git add frontend/src/types/index.ts
+  git commit -m "feat(module3-f2): project recommendation system with portfolio matching"
+
+
+================================================================================
+F3 - PROPOSAL QUALITY ASSISTANT (Google Gemini)              (Zunaid)
+================================================================================
+
+NEW - BACKEND
+  backend/src/services/proposalAssistant.service.ts
+  backend/src/controllers/proposal.controller.ts
+  backend/src/routes/proposal.routes.ts
+
+NEW - FRONTEND
+  frontend/src/services/proposal.service.ts
+  frontend/src/components/projects/ProposalQualityAssistant.tsx
+
+MODIFIED
+  backend/src/config/env.ts             geminiApiKey, geminiModel
+  backend/src/routes/index.ts           mount /proposals
+  backend/.env, backend/.env.example    GEMINI_API_KEY, GEMINI_MODEL
+  frontend/src/types/index.ts           ProposalDimension, ProposalAnalysis
+  frontend/src/app/projects/[id]/page.tsx    owner-only assistant panel
+
+API ENDPOINTS
+  GET    /api/proposals/status
+  POST   /api/proposals/:id/analyze     (owner only)
+
+WHAT GEMINI RETURNS
+  overallScore, summary, strengths[], and three scored dimensions -
+  clarity, completeness, structure - each with feedback and 1-4 suggestions.
+  The request pins a responseSchema so the reply is always valid JSON.
+  503 / 429 responses are retried 3 times with backoff.
+
+GITHUB PUSH LIST
+  git add backend/src/services/proposalAssistant.service.ts
+  git add backend/src/controllers/proposal.controller.ts
+  git add backend/src/routes/proposal.routes.ts
+  git add backend/src/config/env.ts
+  git add backend/src/routes/index.ts
+  git add backend/.env.example
+  git add frontend/src/services/proposal.service.ts
+  git add frontend/src/components/projects/ProposalQualityAssistant.tsx
+  git add "frontend/src/app/projects/[id]/page.tsx"
+  git add frontend/src/types/index.ts
+  git commit -m "feat(module3-f3): proposal quality assistant using Google Gemini API"
+
+  DO NOT COMMIT backend/.env - it holds the real Gemini API key.
+
+
+================================================================================
+F4 - PROJECT ANALYTICS DASHBOARD                             (Zunaid)
+================================================================================
+
+NEW - BACKEND
+  backend/src/models/analytics.model.ts
+  backend/src/services/analytics.service.ts
+  backend/src/controllers/analytics.controller.ts
+  backend/src/routes/analytics.routes.ts
+
+NEW - FRONTEND
+  frontend/src/services/analytics.service.ts
+  frontend/src/components/analytics/viz.ts
+  frontend/src/components/analytics/StatTile.tsx
+  frontend/src/components/analytics/TaskStatusBar.tsx
+  frontend/src/components/analytics/CompletionTrend.tsx
+  frontend/src/components/analytics/ContributionBars.tsx
+  frontend/src/components/analytics/MilestoneMeters.tsx
+  frontend/src/app/projects/[id]/analytics/page.tsx
+
+MODIFIED
+  backend/src/routes/index.ts           mount /analytics
+  frontend/src/types/index.ts           AnalyticsProgress, AnalyticsMilestone,
+                                        AnalyticsContribution, ProjectAnalytics
+  frontend/src/app/projects/[id]/page.tsx           "Analytics" button
+  frontend/src/app/projects/[id]/workspace/page.tsx "Analytics" header link
+
+API ENDPOINTS
+  GET    /api/analytics/project/:projectId    (members only)
+
+CONTRIBUTION SCORE
+  tasksCompleted x3 + otherAssignedTasks x1 + discussions x2
+  + replies x1 + documents x2 + meetings x2
+  Derived from real activity because the Module 2 Feature 4 manual
+  contribution scoring was not built.
+
+GITHUB PUSH LIST
+  git add backend/src/models/analytics.model.ts
+  git add backend/src/services/analytics.service.ts
+  git add backend/src/controllers/analytics.controller.ts
+  git add backend/src/routes/analytics.routes.ts
+  git add backend/src/routes/index.ts
+  git add frontend/src/services/analytics.service.ts
+  git add frontend/src/components/analytics/
+  git add "frontend/src/app/projects/[id]/analytics/page.tsx"
+  git add "frontend/src/app/projects/[id]/page.tsx"
+  git add "frontend/src/app/projects/[id]/workspace/page.tsx"
+  git add frontend/src/types/index.ts
+  git commit -m "feat(module3-f4): project analytics dashboard"
+
+
+================================================================================
+F5 - ACADEMIC PUBLICATION SEARCH (OpenAlex)                  (Fahad)
+================================================================================
+
+NEW - BACKEND
+  backend/src/services/openalex.service.ts
+  backend/src/validators/publication.validator.ts
+  backend/src/controllers/publication.controller.ts
+  backend/src/routes/publication.routes.ts
+
+NEW - FRONTEND
+  frontend/src/services/publication.service.ts
+  frontend/src/components/publications/PublicationCard.tsx
+  frontend/src/app/publications/page.tsx
+
+MODIFIED
+  backend/src/config/env.ts             openAlexMailto
+  backend/src/routes/index.ts           mount /publications
+  backend/.env, backend/.env.example    OPENALEX_MAILTO
+  frontend/src/types/index.ts           Publication, PublicationAuthor,
+                                        PublicationSearchFilters,
+                                        PublicationSearchResult, PublicationSort
+  frontend/src/components/layout/Navbar.tsx      "Papers" link
+
+API ENDPOINTS
+  GET    /api/publications/search   ?query&fromYear&toYear&openAccessOnly
+                                     &sort=relevance|citations|newest&page&perPage
+  GET    /api/publications/:id      (OpenAlex work id, e.g. W2787249583)
+
+NOTES
+  OpenAlex is free and needs NO API key. The backend proxies it so the browser
+  never deals with CORS and the contact email stays server-side.
+  Abstracts are rebuilt from OpenAlex's abstract_inverted_index format.
+
+GITHUB PUSH LIST
+  git add backend/src/services/openalex.service.ts
+  git add backend/src/validators/publication.validator.ts
+  git add backend/src/controllers/publication.controller.ts
+  git add backend/src/routes/publication.routes.ts
+  git add backend/src/config/env.ts
+  git add backend/src/routes/index.ts
+  git add backend/.env.example
+  git add frontend/src/services/publication.service.ts
+  git add frontend/src/components/publications/PublicationCard.tsx
+  git add frontend/src/app/publications/page.tsx
+  git add frontend/src/components/layout/Navbar.tsx
+  git add frontend/src/types/index.ts
+  git commit -m "feat(module3-f5): academic publication search using OpenAlex API"
+
+
+================================================================================
+F6 - PROJECT REPORT GENERATION                               (Fahad)
+================================================================================
+
+NEW - BACKEND
+  backend/src/models/report.model.ts
+  backend/src/services/report.service.ts        <- builds the PDF with pdfkit
+  backend/src/controllers/report.controller.ts
+  backend/src/routes/report.routes.ts
+
+NEW - FRONTEND
+  frontend/src/services/report.service.ts
+
+MODIFIED
+  backend/src/routes/index.ts           mount /reports
+  backend/package.json                  + pdfkit, + @types/pdfkit
+  frontend/src/app/projects/[id]/analytics/page.tsx   owner-only
+                                        "Download report" button
+
+API ENDPOINTS
+  GET    /api/reports/project/:id/preview   (owner only, JSON)
+  GET    /api/reports/project/:id/pdf       (owner only, streams the PDF)
+
+REPORT CONTENTS
+  Header, project overview, progress summary (hero % and bar), milestones
+  table with overdue rows in red, team contributions table, collaboration
+  activity, task detail grouped by milestone, and page footers.
+  The report reuses F4's analytics service, so the PDF and the dashboard can
+  never disagree.
+
+GITHUB PUSH LIST
+  git add backend/src/models/report.model.ts
+  git add backend/src/services/report.service.ts
+  git add backend/src/controllers/report.controller.ts
+  git add backend/src/routes/report.routes.ts
+  git add backend/src/routes/index.ts
+  git add backend/package.json backend/package-lock.json
+  git add frontend/src/services/report.service.ts
+  git add "frontend/src/app/projects/[id]/analytics/page.tsx"
+  git commit -m "feat(module3-f6): downloadable project progress report as PDF"
+
+
+================================================================================
+FILES SHARED BY SEVERAL FEATURES - MERGE CAREFULLY
+================================================================================
+
+  backend/src/routes/index.ts                 F1 F2 F3 F4 F5 F6
+  backend/src/config/env.ts                   F1 F3 F5
+  backend/.env.example                        F1 F3 F5
+  backend/package.json / package-lock.json    F1 F6
+  frontend/src/types/index.ts                 F1 F2 F3 F4 F5
+  frontend/src/components/layout/Navbar.tsx   F2 F5
+  frontend/src/app/projects/[id]/page.tsx     F1 F3 F4
+  frontend/src/app/projects/[id]/workspace/page.tsx   F1 F4
+  frontend/src/app/projects/[id]/analytics/page.tsx   F4 (created) F6 (button)
+
+  When two members touch these, keep BOTH sets of changes. They are additive -
+  extra imports, extra routes, extra type blocks, extra buttons.
+
+
+================================================================================
+PUSHING EVERYTHING AT ONCE
+================================================================================
+
+  This folder is NOT a git repository yet. To start:
+
+      cd /Users/expert/Desktop/project471
+      git init
+      git branch -M main
+      git remote add origin https://github.com/<org-or-user>/<repo>.git
+
+  Confirm .gitignore already excludes: node_modules/, .next/, .env,
+  backend/uploads/, build output. NEVER commit backend/.env - it contains the
+  live Google client secret, the Gemini API key and the database URL.
+
+  All of Module 3 in one commit:
+
+      git add backend/src backend/prisma backend/package.json \
+              backend/package-lock.json backend/.env.example \
+              frontend/src
+      git commit -m "feat(module3): meeting scheduler, recommendations, proposal assistant, analytics, publication search, report generation"
+      git push -u origin main
+
+  Recommended per-feature branches:
+
+      git checkout -b feature/module3-f1-meeting-scheduler
+      git checkout -b feature/module3-f2-recommendations
+      git checkout -b feature/module3-f3-proposal-assistant
+      git checkout -b feature/module3-f4-analytics
+      git checkout -b feature/module3-f5-publication-search
+      git checkout -b feature/module3-f6-report-generation
+
+
+================================================================================
+BEFORE YOU PUSH - CHECKLIST
+================================================================================
+
+  [ ] cd backend  && node node_modules/typescript/bin/tsc --noEmit   (no errors)
+  [ ] cd frontend && node node_modules/typescript/bin/tsc --noEmit   (no errors)
+  [ ] backend/.env is NOT staged        (git status | grep .env)
+  [ ] backend/.env.example IS staged, with empty placeholder values
+  [ ] the migration folder 20260817185238_add_meeting_scheduler is included
+  [ ] teammates run:  npx prisma migrate deploy  &&  npm install
+      after pulling, so their database and packages match
+
+================================================================================
+END OF DOCUMENT
+================================================================================

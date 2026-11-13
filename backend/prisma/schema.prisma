@@ -1,0 +1,545 @@
+// ============================================================
+// Research & Project Collaboration Network
+// Prisma schema — MODULE 1 scope
+// (auth, portfolio, projects, search, applications, teams)
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------
+// ENUMS
+// ------------------------------------------------------------
+
+enum ProficiencyLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+}
+
+enum ProjectStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+  COMPLETED
+}
+
+enum CollaborationType {
+  REMOTE
+  ONSITE
+  HYBRID
+}
+
+enum ImportanceLevel {
+  REQUIRED
+  PREFERRED
+  OPTIONAL
+}
+
+enum ApplicationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum MemberRole {
+  OWNER
+  RESEARCH_LEAD
+  DEVELOPER
+  DATA_ANALYST
+  WRITER
+  MEMBER
+}
+
+// ------------------------------------------------------------
+// MODULE 2 ENUMS
+// ------------------------------------------------------------
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum MilestoneStatus {
+  PENDING
+  COMPLETED
+}
+
+enum NotificationType {
+  DISCUSSION_THREAD
+  DISCUSSION_REPLY
+  APPLICATION_RECEIVED
+  APPLICATION_ACCEPTED
+  APPLICATION_REJECTED
+  TASK_ASSIGNED
+  TASK_UPDATED
+  MEETING_SCHEDULED
+  MEETING_UPDATED
+  MEETING_CANCELLED
+  ROLE_ASSIGNED
+  CONTRIBUTION_EVALUATED
+}
+
+// ------------------------------------------------------------
+// MODULE 3 ENUMS
+// ------------------------------------------------------------
+
+enum MeetingStatus {
+  SCHEDULED
+  CANCELLED
+}
+
+// ------------------------------------------------------------
+// USER & PORTFOLIO   
+// ------------------------------------------------------------
+
+model User {
+  userId              Int      @id @default(autoincrement()) @map("user_id")
+  fullName            String   @map("full_name")
+  email               String   @unique
+  passwordHash        String   @map("password_hash")
+  profilePictureUrl   String?  @map("profile_picture_url")
+  bio                 String?
+  institution         String?
+  designation         String?
+  orcidId             String?  @map("orcid_id")
+  websiteUrl          String?  @map("website_url")
+  openToCollaboration Boolean  @default(true) @map("open_to_collaboration")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  skills              UserSkill[]
+  interests           UserInterest[]
+  educations          Education[]
+  publications        Publication[]
+  portfolioDocuments  PortfolioDocument[]
+  projectExperiences  ProjectExperience[]
+
+  ownedProjects       Project[]           @relation("ProjectOwner")
+  applications        Application[]       @relation("Applicant")
+  reviewedApplications Application[]      @relation("Reviewer")
+  memberships         ProjectMember[]
+
+  tasksCreated        Task[]              @relation("TaskCreator")
+  tasksAssigned       Task[]              @relation("TaskAssignee")
+
+  discussionThreads   DiscussionThread[]
+  discussionComments  DiscussionComment[]
+  notifications       Notification[]      @relation("NotificationRecipient")
+  notificationsActed  Notification[]      @relation("NotificationActor")
+
+  uploadedDocuments   ProjectDocument[]
+
+  // Module 3 - Meeting Scheduler (Shakib)
+  googleAccount       GoogleAccount?
+  organizedMeetings   Meeting[]           @relation("MeetingOrganizer")
+  meetingAttendances  MeetingAttendee[]
+
+  @@map("users")
+}
+
+model Skill {
+  skillId  Int     @id @default(autoincrement()) @map("skill_id")
+  name     String  @unique
+  category String?
+
+  users            UserSkill[]
+  projectRequirements ProjectSkillRequirement[]
+
+  @@map("skills")
+}
+
+model Interest {
+  interestId Int    @id @default(autoincrement()) @map("interest_id")
+  name       String @unique
+
+  users UserInterest[]
+
+  @@map("interests")
+}
+
+model UserSkill {
+  userId           Int              @map("user_id")
+  skillId          Int              @map("skill_id")
+  proficiencyLevel ProficiencyLevel @default(INTERMEDIATE) @map("proficiency_level")
+
+  user  User  @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  skill Skill @relation(fields: [skillId], references: [skillId], onDelete: Cascade)
+
+  @@id([userId, skillId])
+  @@map("user_skills")
+}
+
+model UserInterest {
+  userId     Int @map("user_id")
+  interestId Int @map("interest_id")
+
+  user     User     @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  interest Interest @relation(fields: [interestId], references: [interestId], onDelete: Cascade)
+
+  @@id([userId, interestId])
+  @@map("user_interests")
+}
+
+model Education {
+  educationId  Int     @id @default(autoincrement()) @map("education_id")
+  userId       Int     @map("user_id")
+  degree       String
+  fieldOfStudy String  @map("field_of_study")
+  institution  String
+  startYear    Int?    @map("start_year")
+  endYear      Int?    @map("end_year")
+
+  user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("educations")
+}
+
+model Publication {
+  publicationId Int      @id @default(autoincrement()) @map("publication_id")
+  userId        Int      @map("user_id")
+  title         String
+  doi           String?
+  externalId    String?  @map("external_id")
+  authors       String?
+  venue         String?
+  year          Int?
+  citationCount Int      @default(0) @map("citation_count")
+  sourceApi     String   @default("manual") @map("source_api")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("publications")
+}
+
+model PortfolioDocument {
+  documentId Int      @id @default(autoincrement()) @map("document_id")
+  userId     Int      @map("user_id")
+  docType    String   @map("doc_type") // CV / Certificate / Sample
+  title      String
+  fileUrl    String   @map("file_url")
+  uploadedAt DateTime @default(now()) @map("uploaded_at")
+
+  user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("portfolio_documents")
+}
+
+// Past projects done OUTSIDE this platform.
+// In-platform history comes from ProjectMember.
+model ProjectExperience {
+  experienceId Int     @id @default(autoincrement()) @map("experience_id")
+  userId       Int     @map("user_id")
+  title        String
+  description  String?
+  role         String?
+  organization String?
+  startYear    Int?    @map("start_year")
+  endYear      Int?    @map("end_year")
+
+  user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("project_experiences")
+}
+
+// ------------------------------------------------------------
+// PROJECTS   + SEARCH (Zunaid)
+// ------------------------------------------------------------
+
+model Project {
+  projectId         Int               @id @default(autoincrement()) @map("project_id")
+  ownerId           Int               @map("owner_id")
+  title             String
+  description       String
+  objectives        String?
+  expectedOutcomes  String?           @map("expected_outcomes")
+  researchDomain    String            @map("research_domain")
+  collaborationType CollaborationType @map("collaboration_type")
+  status            ProjectStatus     @default(DRAFT)
+  durationMonths    Int?              @map("duration_months")
+  teamSizeLimit     Int?              @map("team_size_limit")
+  publishedAt       DateTime?         @map("published_at")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  owner             User                      @relation("ProjectOwner", fields: [ownerId], references: [userId])
+  skillRequirements ProjectSkillRequirement[]
+  applications      Application[]
+  members           ProjectMember[]
+  milestones        Milestone[]
+  tasks             Task[]
+  discussionThreads DiscussionThread[]
+  notifications     Notification[]
+  documents         ProjectDocument[]
+  meetings          Meeting[]
+
+  @@index([ownerId])
+  @@index([status])
+  @@index([researchDomain])
+  @@map("projects")
+}
+
+model ProjectSkillRequirement {
+  projectId       Int             @map("project_id")
+  skillId         Int             @map("skill_id")
+  importanceLevel ImportanceLevel @default(REQUIRED) @map("importance_level")
+
+  project Project @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  skill   Skill   @relation(fields: [skillId], references: [skillId], onDelete: Cascade)
+
+  @@id([projectId, skillId])
+  @@map("project_skill_requirements")
+}
+
+// ------------------------------------------------------------
+// APPLICATIONS & TEAM   (Fahad)
+// ------------------------------------------------------------
+
+model Application {
+  applicationId Int               @id @default(autoincrement()) @map("application_id")
+  projectId     Int               @map("project_id")
+  applicantId   Int               @map("applicant_id")
+  reviewedById  Int?              @map("reviewed_by")
+  status        ApplicationStatus @default(PENDING)
+  message       String?
+  reviewNote    String?           @map("review_note")
+  appliedAt     DateTime          @default(now()) @map("applied_at")
+  reviewedAt    DateTime?         @map("reviewed_at")
+
+  project    Project @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  applicant  User    @relation("Applicant", fields: [applicantId], references: [userId], onDelete: Cascade)
+  reviewedBy User?   @relation("Reviewer", fields: [reviewedById], references: [userId])
+
+  // one active application per user per project
+  @@unique([projectId, applicantId])
+  @@index([projectId])
+  @@index([applicantId])
+  @@map("applications")
+}
+
+model ProjectMember {
+  projectId         Int        @map("project_id")
+  userId            Int        @map("user_id")
+  role              MemberRole @default(MEMBER)
+  responsibilities  String?
+  contributionScore Int?       @map("contribution_score")
+  contributionNotes String?    @map("contribution_notes")
+  evaluatedAt       DateTime?  @map("evaluated_at")
+  joinedAt          DateTime   @default(now()) @map("joined_at")
+
+  project Project @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@id([projectId, userId])
+  @@index([userId])
+  @@map("project_members")
+}
+
+// ------------------------------------------------------------
+// TASKS & MILESTONES   (Farhan - Module 2 Feature 1)
+// ------------------------------------------------------------
+
+model Milestone {
+  milestoneId Int             @id @default(autoincrement()) @map("milestone_id")
+  projectId   Int             @map("project_id")
+  title       String
+  description String?
+  dueDate     DateTime?       @map("due_date")
+  status      MilestoneStatus @default(PENDING)
+  orderIndex  Int             @default(0) @map("order_index")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  tasks   Task[]
+
+  @@index([projectId])
+  @@map("milestones")
+}
+
+model Task {
+  taskId      Int          @id @default(autoincrement()) @map("task_id")
+  projectId   Int          @map("project_id")
+  milestoneId Int?         @map("milestone_id")
+  title       String
+  description String?
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?    @map("due_date")
+  assigneeId  Int?         @map("assignee_id")
+  createdById Int          @map("created_by")
+  completedAt DateTime?    @map("completed_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  project   Project    @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  milestone Milestone? @relation(fields: [milestoneId], references: [milestoneId], onDelete: SetNull)
+  assignee  User?      @relation("TaskAssignee", fields: [assigneeId], references: [userId], onDelete: SetNull)
+  createdBy User       @relation("TaskCreator", fields: [createdById], references: [userId])
+
+  @@index([projectId])
+  @@index([milestoneId])
+  @@index([assigneeId])
+  @@map("tasks")
+}
+
+// ------------------------------------------------------------
+// DISCUSSION & NOTIFICATIONS   (Zunaid - Module 2 Feature 2)
+// ------------------------------------------------------------
+
+model DiscussionThread {
+  threadId  Int      @id @default(autoincrement()) @map("thread_id")
+  projectId Int      @map("project_id")
+  authorId  Int      @map("author_id")
+  title     String
+  body      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  project  Project             @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  author   User                @relation(fields: [authorId], references: [userId], onDelete: Cascade)
+  comments DiscussionComment[]
+
+  @@index([projectId])
+  @@map("discussion_threads")
+}
+
+model DiscussionComment {
+  commentId Int      @id @default(autoincrement()) @map("comment_id")
+  threadId  Int      @map("thread_id")
+  authorId  Int      @map("author_id")
+  body      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  thread DiscussionThread @relation(fields: [threadId], references: [threadId], onDelete: Cascade)
+  author User             @relation(fields: [authorId], references: [userId], onDelete: Cascade)
+
+  @@index([threadId])
+  @@map("discussion_comments")
+}
+
+model Notification {
+  notificationId Int              @id @default(autoincrement()) @map("notification_id")
+  userId         Int              @map("user_id")
+  actorId        Int?             @map("actor_id")
+  projectId      Int?             @map("project_id")
+  type           NotificationType
+  message        String
+  linkUrl        String?          @map("link_url")
+  isRead         Boolean          @default(false) @map("is_read")
+  createdAt      DateTime         @default(now()) @map("created_at")
+
+  user    User     @relation("NotificationRecipient", fields: [userId], references: [userId], onDelete: Cascade)
+  actor   User?    @relation("NotificationActor", fields: [actorId], references: [userId], onDelete: SetNull)
+  project Project? @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("notifications")
+}
+
+// ------------------------------------------------------------
+// DOCUMENTS   (Fahad - Module 2 Feature 3)
+// ------------------------------------------------------------
+
+model ProjectDocument {
+  documentId   Int      @id @default(autoincrement()) @map("document_id")
+  projectId    Int      @map("project_id")
+  uploaderId   Int      @map("uploader_id")
+  title        String
+  description  String?
+  category     String?
+  fileName     String   @map("file_name")      // stored name on disk
+  originalName String   @map("original_name")  // name the user uploaded
+  mimeType     String   @map("mime_type")
+  sizeBytes    Int      @map("size_bytes")
+  version      Int      @default(1)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  project  Project @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  uploader User    @relation(fields: [uploaderId], references: [userId], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("project_documents")
+}
+
+// ------------------------------------------------------------
+// MEETING SCHEDULER + GOOGLE CALENDAR   (Shakib - Module 3 Feature 1)
+// ------------------------------------------------------------
+
+// A user's Google Calendar connection. One row per user (1:1). Holds the
+// OAuth tokens used to push meetings to their calendar. Tokens are secrets
+// and are never sent to the client.
+model GoogleAccount {
+  userId       Int       @id @map("user_id")
+  googleEmail  String?   @map("google_email")
+  accessToken  String    @map("access_token")
+  refreshToken String    @map("refresh_token")
+  scope        String?
+  tokenType    String?   @map("token_type")
+  expiryDate   DateTime? @map("expiry_date") // when the access token expires
+  connectedAt  DateTime  @default(now()) @map("connected_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@map("google_accounts")
+}
+
+model Meeting {
+  meetingId   Int           @id @default(autoincrement()) @map("meeting_id")
+  projectId   Int           @map("project_id")
+  organizerId Int           @map("organizer_id")
+  title       String
+  description String?
+  location    String?
+  meetingLink String?       @map("meeting_link")
+  startTime   DateTime      @map("start_time")
+  endTime     DateTime      @map("end_time")
+  status      MeetingStatus @default(SCHEDULED)
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  project   Project           @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  organizer User              @relation("MeetingOrganizer", fields: [organizerId], references: [userId])
+  attendees MeetingAttendee[]
+
+  @@index([projectId])
+  @@map("meetings")
+}
+
+// Who is invited to a meeting, plus the id of the event created on THAT
+// user's Google Calendar (null until it's synced / if they haven't connected).
+model MeetingAttendee {
+  meetingId     Int       @map("meeting_id")
+  userId        Int       @map("user_id")
+  googleEventId String?   @map("google_event_id")
+  syncedAt      DateTime? @map("synced_at")
+
+  meeting Meeting @relation(fields: [meetingId], references: [meetingId], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@id([meetingId, userId])
+  @@index([userId])
+  @@map("meeting_attendees")
+}

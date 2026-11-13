@@ -1,0 +1,23 @@
+# Root-level safety net. Each app (backend/, frontend/) also has its own
+# .gitignore; this covers OS/editor junk and any stray generated files.
+
+# dependencies (installed by `npm install`)
+**/node_modules/
+
+# build output
+**/dist/
+**/.next/
+
+# secrets (real values live only on each machine; commit the .example files)
+**/.env
+**/.env.local
+
+# logs
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.env
+*.log
+
+# uploaded document files (kept out of the repo; see Module 2 Feature 3)
+uploads/
