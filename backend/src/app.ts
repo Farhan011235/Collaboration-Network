@@ -7,9 +7,27 @@ import { env } from "./config/env";
 
 const app = express();
 
+const allowedOrigins = [
+  env.clientUrl.replace(/\/$/, ""),
+  "http://localhost:3000",
+  "https://collaboration-network.vercel.app",
+];
+
 app.use(
   cors({
-    origin: env.clientUrl,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, server-to-server)
+      if (!origin) return callback(null, true);
+      const cleanOrigin = origin.replace(/\/$/, "");
+      if (
+        allowedOrigins.includes(cleanOrigin) ||
+        cleanOrigin.endsWith(".vercel.app") ||
+        cleanOrigin.includes("localhost")
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
     credentials: true,
   })
 );
